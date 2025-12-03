@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pig Xeyes</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="container">
+        <svg viewBox="0 0 590 1024" preserveAspectRatio="xMidYMid meet" id="pig-svg">
+            <image href="pig_no_pupils.jpg" width="590" height="1024" />
+
+            <!-- Left Eye: Update translate(x, y) to match script.js -->
+            <g id="eye-left" transform="translate(284, 414)">
+                <image href="pupil.png" x="-10" y="-10" width="20" height="20" class="pupil" />
+            </g>
+
+            <!-- Right Eye: Update translate(x, y) to match script.js -->
+            <g id="eye-right" transform="translate(432, 405)">
+                <image href="pupil.png" x="-10" y="-10" width="20" height="20" class="pupil" />
+            </g>
+
+            <!-- Snout Click Area -->
+            <circle id="snout" cx="408" cy="500" r="60" fill="transparent" style="cursor: pointer;" />
+        </svg>
+        <audio id="pig-sound" src="pig-sound.mp3"></audio>
+    </div>
+    <script src="script.js"></script>
+</body>
+
+</html>
