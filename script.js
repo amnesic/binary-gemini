@@ -35,10 +35,56 @@ function updateEye(eyeGroup, eyeCenter, mouseSVG) {
     eyeGroup.setAttribute('transform', `translate(${eyeCenter.x + moveX}, ${eyeCenter.y + moveY})`);
 }
 
-document.addEventListener('mousemove', (event) => {
-    const mouseSVG = getSVGPoint(event.clientX, event.clientY);
+// Helper to update eyes based on client coordinates
+function updateEyes(clientX, clientY) {
+    const mouseSVG = getSVGPoint(clientX, clientY);
     updateEye(leftEyeGroup, leftEyeCenter, mouseSVG);
     updateEye(rightEyeGroup, rightEyeCenter, mouseSVG);
+}
+
+// Mouse interaction
+document.addEventListener('mousemove', (event) => {
+    // Ensure smooth return is off during active interaction
+    leftEyeGroup.classList.remove('smooth-return');
+    rightEyeGroup.classList.remove('smooth-return');
+    updateEyes(event.clientX, event.clientY);
+});
+
+// Touch interaction
+document.addEventListener('touchstart', (event) => {
+    // Prevent default to stop scrolling/zooming while interacting with the eyes
+    // We only prevent default if touching the SVG area to allow scrolling elsewhere if needed,
+    // but for this full-screen-ish app, preventing on document is okay if the user intends to play.
+    // Let's target the svg for preventing default to be safer, or just the document if it's the main purpose.
+    // Given the request "Prevent default scrolling when interacting with pig", we'll assume document level for simplicity of the game feel.
+    if (event.target.closest('#pig-svg')) {
+        event.preventDefault();
+    }
+
+    leftEyeGroup.classList.remove('smooth-return');
+    rightEyeGroup.classList.remove('smooth-return');
+
+    const touch = event.touches[0];
+    updateEyes(touch.clientX, touch.clientY);
+}, { passive: false });
+
+document.addEventListener('touchmove', (event) => {
+    if (event.target.closest('#pig-svg')) {
+        event.preventDefault();
+    }
+    const touch = event.touches[0];
+    updateEyes(touch.clientX, touch.clientY);
+}, { passive: false });
+
+document.addEventListener('touchend', () => {
+    // Add class for smooth transition
+    leftEyeGroup.classList.add('smooth-return');
+    rightEyeGroup.classList.add('smooth-return');
+
+    // Return to center (original translate coordinates)
+    // We simply set the transform back to the center coordinates
+    leftEyeGroup.setAttribute('transform', `translate(${leftEyeCenter.x}, ${leftEyeCenter.y})`);
+    rightEyeGroup.setAttribute('transform', `translate(${rightEyeCenter.x}, ${rightEyeCenter.y})`);
 });
 
 // Snout sound interaction
@@ -49,3 +95,10 @@ snout.addEventListener('click', () => {
     pigSound.currentTime = 0; // Rewind to start if already playing
     pigSound.play().catch(e => console.log("Audio play failed:", e)); // Catch potential autoplay policy errors
 });
+
+// Also add touch listener for snout to ensure it works responsively on mobile
+snout.addEventListener('touchstart', (e) => {
+    e.preventDefault(); // Prevent double-firing with click if both are present
+    pigSound.currentTime = 0;
+    pigSound.play().catch(e => console.log("Audio play failed:", e));
+}, { passive: false });

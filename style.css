@@ -24,3 +24,8 @@ svg {
     height: auto;
     width: auto;
 }
+
+/* Smooth return animation for touch devices */
+.smooth-return {
+    transition: transform 0.5s ease-out;
+}
