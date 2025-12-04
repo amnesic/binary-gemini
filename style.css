@@ -25,7 +25,13 @@ svg {
     width: auto;
 }
 
-/* Smooth return animation for touch devices */
-.smooth-return {
-    transition: transform 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+#version {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    font-family: monospace;
+    font-size: 12px;
+    color: #888;
+    z-index: 1000;
+    pointer-events: none;
 }

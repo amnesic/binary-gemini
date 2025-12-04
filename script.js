@@ -42,11 +42,74 @@ function updateEyes(clientX, clientY) {
     updateEye(rightEyeGroup, rightEyeCenter, mouseSVG);
 }
 
+// Animation state
+let animationFrameId = null;
+
+// Helper to set eye position
+function setEyePosition(group, x, y) {
+    group.setAttribute('transform', `translate(${x}, ${y})`);
+}
+
+// Easing function: Elastic Out
+function easeOutElastic(x) {
+    const c4 = (2 * Math.PI) / 3;
+    return x === 0
+        ? 0
+        : x === 1
+            ? 1
+            : Math.pow(2, -10 * x) * Math.sin((x * 10 - 0.75) * c4) + 1;
+}
+
+// Animate eyes back to center
+function animateReturn() {
+    // Cancel any existing animation
+    if (animationFrameId) cancelAnimationFrame(animationFrameId);
+
+    const startTime = performance.now();
+    const duration = 1000; // 1 second duration
+
+    // Get current positions (we need to know where we are starting from)
+    // We can read the current transform attribute to get the start point
+    // But since we just updated them in updateEyes, we can assume the last known position is where we are.
+    // However, reading from DOM is safer to ensure continuity.
+
+    function getCurrentPos(group) {
+        const transform = group.getAttribute('transform');
+        const match = /translate\(([^,]+),\s*([^)]+)\)/.exec(transform);
+        return match ? { x: parseFloat(match[1]), y: parseFloat(match[2]) } : null;
+    }
+
+    const startLeft = getCurrentPos(leftEyeGroup) || leftEyeCenter;
+    const startRight = getCurrentPos(rightEyeGroup) || rightEyeCenter;
+
+    function frame(time) {
+        let timeFraction = (time - startTime) / duration;
+        if (timeFraction > 1) timeFraction = 1;
+
+        const progress = easeOutElastic(timeFraction);
+
+        const currentLeftX = startLeft.x + (leftEyeCenter.x - startLeft.x) * progress;
+        const currentLeftY = startLeft.y + (leftEyeCenter.y - startLeft.y) * progress;
+
+        const currentRightX = startRight.x + (rightEyeCenter.x - startRight.x) * progress;
+        const currentRightY = startRight.y + (rightEyeCenter.y - startRight.y) * progress;
+
+        setEyePosition(leftEyeGroup, currentLeftX, currentLeftY);
+        setEyePosition(rightEyeGroup, currentRightX, currentRightY);
+
+        if (timeFraction < 1) {
+            animationFrameId = requestAnimationFrame(frame);
+        } else {
+            animationFrameId = null;
+        }
+    }
+
+    animationFrameId = requestAnimationFrame(frame);
+}
+
 // Mouse interaction
 document.addEventListener('mousemove', (event) => {
-    // Ensure smooth return is off during active interaction
-    leftEyeGroup.classList.remove('smooth-return');
-    rightEyeGroup.classList.remove('smooth-return');
+    if (animationFrameId) cancelAnimationFrame(animationFrameId);
     updateEyes(event.clientX, event.clientY);
 });
 
@@ -60,9 +123,7 @@ document.addEventListener('touchstart', (event) => {
     if (event.target.closest('#pig-svg')) {
         event.preventDefault();
     }
-
-    leftEyeGroup.classList.remove('smooth-return');
-    rightEyeGroup.classList.remove('smooth-return');
+    if (animationFrameId) cancelAnimationFrame(animationFrameId);
 
     const touch = event.touches[0];
     updateEyes(touch.clientX, touch.clientY);
@@ -77,14 +138,7 @@ document.addEventListener('touchmove', (event) => {
 }, { passive: false });
 
 document.addEventListener('touchend', () => {
-    // Add class for smooth transition
-    leftEyeGroup.classList.add('smooth-return');
-    rightEyeGroup.classList.add('smooth-return');
-
-    // Return to center (original translate coordinates)
-    // We simply set the transform back to the center coordinates
-    leftEyeGroup.setAttribute('transform', `translate(${leftEyeCenter.x}, ${leftEyeCenter.y})`);
-    rightEyeGroup.setAttribute('transform', `translate(${rightEyeCenter.x}, ${rightEyeCenter.y})`);
+    animateReturn();
 });
 
 // Snout sound interaction
