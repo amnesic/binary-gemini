@@ -2,7 +2,7 @@ const svg = document.getElementById('pig-svg');
 import {
     FaceLandmarker,
     FilesetResolver
-} from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3";
+} from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/+esm";
 
 const leftEyeGroup = document.getElementById('eye-left');
 const rightEyeGroup = document.getElementById('eye-right');
@@ -162,3 +162,166 @@ snout.addEventListener('touchstart', (e) => {
     pigSound.currentTime = 0;
     pigSound.play().catch(e => console.log("Audio play failed:", e));
 }, { passive: false });
+
+// --- Face Tracking Logic ---
+
+let faceLandmarker = undefined;
+let webcamRunning = false;
+const video = document.getElementById("webcam");
+const webcamButton = document.getElementById("webcamButton");
+
+// Before we can use FaceLandmarker class we must wait for it to finish
+// loading. Machine Learning models can be large and take a moment to
+// get everything needed to run.
+async function createFaceLandmarker() {
+    console.log("Loading FaceLandmarker...");
+    if (webcamButton) {
+        webcamButton.innerText = "LOADING AI...";
+        webcamButton.disabled = true;
+    }
+
+    try {
+        const filesetResolver = await FilesetResolver.forVisionTasks(
+            "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
+        );
+        faceLandmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
+            baseOptions: {
+                modelAssetPath: `https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task`,
+                delegate: "GPU"
+            },
+            outputFaceBlendshapes: true,
+            runningMode: "VIDEO",
+            numFaces: 1
+        });
+        console.log("FaceLandmarker loaded successfully!");
+        if (webcamButton) {
+            webcamButton.innerText = "ENABLE CAMERA";
+            webcamButton.disabled = false;
+        }
+    } catch (error) {
+        console.error("Error loading FaceLandmarker:", error);
+        if (webcamButton) {
+            webcamButton.innerText = "ERROR LOADING AI";
+        }
+    }
+}
+createFaceLandmarker();
+
+// Check if webcam access is supported.
+const hasGetUserMedia = () => !!navigator.mediaDevices?.getUserMedia;
+
+if (hasGetUserMedia()) {
+    if (webcamButton) {
+        webcamButton.addEventListener("click", enableCam);
+    }
+} else {
+    console.warn("getUserMedia() is not supported by your browser");
+    if (webcamButton) {
+        webcamButton.style.display = "none";
+    }
+}
+
+function enableCam(event) {
+    console.log("Enable Camera clicked");
+    // DEBUG: Alert to confirm click is registered
+    // alert("Button clicked!"); 
+
+    if (!faceLandmarker) {
+        alert("Patience ! L'IA est encore en train de charger...");
+        return;
+    }
+
+    if (webcamRunning === true) {
+        console.log("Stopping camera...");
+        webcamRunning = false;
+        webcamButton.innerText = "ENABLE CAMERA";
+        webcamButton.classList.remove("active");
+        // Stop the stream
+        if (video.srcObject) {
+            const stream = video.srcObject;
+            const tracks = stream.getTracks();
+            tracks.forEach(track => track.stop());
+            video.srcObject = null;
+        }
+
+        // Reset eyes to center
+        animateReturn();
+    } else {
+        console.log("Starting camera...");
+        webcamRunning = true;
+        webcamButton.innerText = "DISABLE CAMERA";
+        webcamButton.classList.add("active");
+
+        const constraints = {
+            video: {
+                facingMode: "user", // Use front camera
+                width: { ideal: 640 },
+                height: { ideal: 480 }
+            }
+        };
+
+        // Activate the webcam stream.
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            alert("Erreur: Votre navigateur ne supporte pas l'accès caméra.");
+            return;
+        }
+
+        navigator.mediaDevices.getUserMedia(constraints).then((stream) => {
+            console.log("Camera stream started");
+            video.srcObject = stream;
+            video.addEventListener("loadeddata", predictWebcam);
+        }).catch(err => {
+            console.error("Error accessing camera:", err);
+            alert("Erreur d'accès caméra: " + err.message);
+            webcamButton.innerText = "CAMERA ERROR";
+            webcamRunning = false;
+        });
+    }
+}
+
+let lastVideoTime = -1;
+let results = undefined;
+
+async function predictWebcam() {
+    // if image mode is initialized, create a new classifier with video runningMode
+    if (webcamRunning === false) return;
+
+    let startTimeMs = performance.now();
+    if (lastVideoTime !== video.currentTime) {
+        lastVideoTime = video.currentTime;
+        results = faceLandmarker.detectForVideo(video, startTimeMs);
+    }
+
+    if (results.faceLandmarks && results.faceLandmarks.length > 0) {
+        const landmarks = results.faceLandmarks[0];
+
+        // Keypoint 1 is the tip of the nose.
+        // Keypoint 6 is between the eyes.
+        // We'll use keypoint 6 for a stable "gaze" target.
+        const nose = landmarks[6];
+
+        // MediaPipe coordinates are normalized [0, 1].
+        // x: 0 (left) -> 1 (right)
+        // y: 0 (top) -> 1 (bottom)
+
+        // Mirror the X coordinate because it's a selfie camera
+        const mirroredX = 1 - nose.x;
+        const normalizedY = nose.y;
+
+        // Map normalized coordinates to screen coordinates
+        // We want the pig to look at the "screen position" of the face.
+        const screenX = mirroredX * window.innerWidth;
+        const screenY = normalizedY * window.innerHeight;
+
+        // Cancel any return animation if active
+        if (animationFrameId) cancelAnimationFrame(animationFrameId);
+
+        // Update eyes
+        updateEyes(screenX, screenY);
+    }
+
+    // Call this function again to keep predicting when the browser is ready.
+    if (webcamRunning === true) {
+        window.requestAnimationFrame(predictWebcam);
+    }
+}
