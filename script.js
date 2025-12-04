@@ -176,7 +176,7 @@ const webcamButton = document.getElementById("webcamButton");
 async function createFaceLandmarker() {
     console.log("Loading FaceLandmarker...");
     if (webcamButton) {
-        webcamButton.innerText = "LOADING AI...";
+        webcamButton.innerText = "⏳"; // Loading
         webcamButton.disabled = true;
     }
 
@@ -195,13 +195,13 @@ async function createFaceLandmarker() {
         });
         console.log("FaceLandmarker loaded successfully!");
         if (webcamButton) {
-            webcamButton.innerText = "ENABLE CAMERA";
+            webcamButton.innerText = "🎦"; // Ready
             webcamButton.disabled = false;
         }
     } catch (error) {
         console.error("Error loading FaceLandmarker:", error);
         if (webcamButton) {
-            webcamButton.innerText = "ERROR LOADING AI";
+            webcamButton.innerText = "⚠️"; // Error
         }
     }
 }
@@ -234,7 +234,7 @@ function enableCam(event) {
     if (webcamRunning === true) {
         console.log("Stopping camera...");
         webcamRunning = false;
-        webcamButton.innerText = "ENABLE CAMERA";
+        webcamButton.innerText = "🎦"; // Back to Ready state
         webcamButton.classList.remove("active");
         // Stop the stream
         if (video.srcObject) {
@@ -248,8 +248,15 @@ function enableCam(event) {
         animateReturn();
     } else {
         console.log("Starting camera...");
+
+        // Unlock audio context on user interaction (fix for NotAllowedError)
+        pigSound.play().then(() => {
+            pigSound.pause();
+            pigSound.currentTime = 0;
+        }).catch(e => console.log("Audio unlock failed (harmless if already unlocked):", e));
+
         webcamRunning = true;
-        webcamButton.innerText = "DISABLE CAMERA";
+        webcamButton.innerText = "⏹️"; // Stop icon
         webcamButton.classList.add("active");
 
         const constraints = {
@@ -273,7 +280,7 @@ function enableCam(event) {
         }).catch(err => {
             console.error("Error accessing camera:", err);
             alert("Erreur d'accès caméra: " + err.message);
-            webcamButton.innerText = "CAMERA ERROR";
+            webcamButton.innerText = "⚠️"; // Error icon
             webcamRunning = false;
         });
     }
@@ -282,9 +289,53 @@ function enableCam(event) {
 let lastVideoTime = -1;
 let results = undefined;
 
+const faceDebug = document.getElementById("face-debug");
+
+// Linear Interpolation for smooth movement
+function lerp(start, end, factor) {
+    return start + (end - start) * factor;
+}
+
+// Sensitivity factors (Higher = eyes move more for smaller head movements)
+const SENSITIVITY_X = 2.5;
+const SENSITIVITY_Y = 2.0;
+
+// Update eyes based on direction vector (-1 to 1)
+function updateEyesByDirection(xDir, yDir) {
+    // Clamp direction to [-1, 1]
+    xDir = Math.max(-1, Math.min(1, xDir));
+    yDir = Math.max(-1, Math.min(1, yDir));
+
+    const moveX = xDir * maxMove;
+    const moveY = yDir * maxMove;
+
+    leftEyeGroup.setAttribute('transform', `translate(${leftEyeCenter.x + moveX}, ${leftEyeCenter.y + moveY})`);
+    rightEyeGroup.setAttribute('transform', `translate(${rightEyeCenter.x + moveX}, ${rightEyeCenter.y + moveY})`);
+}
+
+let currentXDir = 0;
+let currentYDir = 0;
+const LERP_FACTOR = 0.1; // Adjust for smoothness (0.05 = very smooth/slow, 0.2 = snappy)
+
+// Blink state
+let blinkStartTime = null;
+let hasBlinkTriggered = false;
+
+// Check for Debug Mode via URL parameter
+const urlParams = new URLSearchParams(window.location.search);
+const DEBUG_MODE = urlParams.has('debug');
+
+if (DEBUG_MODE) {
+    const versionDiv = document.getElementById('version');
+    if (versionDiv) versionDiv.style.display = 'block';
+}
+
 async function predictWebcam() {
     // if image mode is initialized, create a new classifier with video runningMode
-    if (webcamRunning === false) return;
+    if (webcamRunning === false) {
+        faceDebug.style.display = "none";
+        return;
+    }
 
     let startTimeMs = performance.now();
     if (lastVideoTime !== video.currentTime) {
@@ -295,29 +346,74 @@ async function predictWebcam() {
     if (results.faceLandmarks && results.faceLandmarks.length > 0) {
         const landmarks = results.faceLandmarks[0];
 
-        // Keypoint 1 is the tip of the nose.
         // Keypoint 6 is between the eyes.
-        // We'll use keypoint 6 for a stable "gaze" target.
         const nose = landmarks[6];
-
-        // MediaPipe coordinates are normalized [0, 1].
-        // x: 0 (left) -> 1 (right)
-        // y: 0 (top) -> 1 (bottom)
 
         // Mirror the X coordinate because it's a selfie camera
         const mirroredX = 1 - nose.x;
         const normalizedY = nose.y;
 
-        // Map normalized coordinates to screen coordinates
-        // We want the pig to look at the "screen position" of the face.
-        const screenX = mirroredX * window.innerWidth;
-        const screenY = normalizedY * window.innerHeight;
+        // Calculate Direction Vector (offset from center 0.5)
+        const targetXDir = (mirroredX - 0.5) * SENSITIVITY_X;
+        const targetYDir = (normalizedY - 0.5) * SENSITIVITY_Y;
+
+        // Apply smoothing (Lerp) to the DIRECTION
+        currentXDir = lerp(currentXDir, targetXDir, LERP_FACTOR);
+        currentYDir = lerp(currentYDir, targetYDir, LERP_FACTOR);
+
+        // Update Debug Dot (only if DEBUG_MODE is true)
+        if (DEBUG_MODE) {
+            const screenX = mirroredX * window.innerWidth;
+            const screenY = normalizedY * window.innerHeight;
+            faceDebug.style.display = "block";
+            faceDebug.style.left = `${screenX}px`;
+            faceDebug.style.top = `${screenY}px`;
+        } else {
+            faceDebug.style.display = "none";
+        }
 
         // Cancel any return animation if active
         if (animationFrameId) cancelAnimationFrame(animationFrameId);
 
-        // Update eyes
-        updateEyes(screenX, screenY);
+        // Update eyes using Parallel Gaze
+        updateEyesByDirection(currentXDir, currentYDir);
+
+        // --- Blink Detection ---
+        if (results.faceBlendshapes && results.faceBlendshapes.length > 0) {
+            const categories = results.faceBlendshapes[0].categories;
+            // Find blink scores
+            const blinkLeft = categories.find(cat => cat.categoryName === "eyeBlinkLeft")?.score || 0;
+            const blinkRight = categories.find(cat => cat.categoryName === "eyeBlinkRight")?.score || 0;
+
+            // Threshold for blinking
+            const isBlinking = (blinkLeft > 0.5) || (blinkRight > 0.5);
+
+            if (isBlinking) {
+                // User is blinking
+                if (!blinkStartTime) {
+                    blinkStartTime = performance.now();
+                } else {
+                    const duration = performance.now() - blinkStartTime;
+                    if (duration > 1000 && !hasBlinkTriggered) {
+                        // Long blink detected (> 1s)
+                        console.log("Long blink detected! Playing sound.");
+                        pigSound.currentTime = 0;
+                        pigSound.play().catch(e => console.log("Audio play failed:", e));
+                        hasBlinkTriggered = true;
+                    }
+                }
+            } else {
+                // User is NOT blinking
+                blinkStartTime = null;
+                hasBlinkTriggered = false;
+                // Ensure pupils are visible
+                leftEyeGroup.style.opacity = "1";
+                rightEyeGroup.style.opacity = "1";
+            }
+        }
+
+    } else {
+        faceDebug.style.display = "none";
     }
 
     // Call this function again to keep predicting when the browser is ready.

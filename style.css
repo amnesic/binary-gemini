@@ -37,6 +37,8 @@ svg {
     border-radius: 4px;
     z-index: 1000;
     pointer-events: none;
+    display: none;
+    /* Hidden by default, shown via JS if ?debug */
 }
 
 #webcamButton {
@@ -44,22 +46,50 @@ svg {
     bottom: 20px;
     right: 20px;
     z-index: 1000;
-    padding: 10px 20px;
-    background-color: #ff4081;
+    width: 60px;
+    height: 60px;
+    padding: 0;
+    background: transparent;
     color: white;
+    /* Icon color, maybe change to black if background is light? Assuming dark/colorful bg or overlay */
     border: none;
-    border-radius: 4px;
+    border-radius: 50%;
     font-family: sans-serif;
+    font-size: 40px;
+    /* Larger icon */
     font-weight: bold;
     cursor: pointer;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
-    transition: background-color 0.3s;
+    transition: transform 0.1s, opacity 0.3s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.7;
+    /* Slightly transparent by default */
 }
 
 #webcamButton:hover {
-    background-color: #f50057;
+    transform: scale(1.1);
+    opacity: 1;
+}
+
+#webcamButton:active {
+    transform: scale(0.95);
 }
 
 #webcamButton.active {
-    background-color: #4caf50;
+    /* No background change, maybe just opacity or icon change handled in JS */
+}
+
+#face-debug {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    background-color: rgba(255, 0, 0, 0.5);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 2000;
+    display: none;
+    /* Hidden by default, shown when camera active */
+    transform: translate(-50%, -50%);
+    /* Center on coordinates */
 }
