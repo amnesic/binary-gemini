@@ -1,6 +1,12 @@
 const svg = document.getElementById('pig-svg');
+import {
+    FaceLandmarker,
+    FilesetResolver
+} from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3";
+
 const leftEyeGroup = document.getElementById('eye-left');
 const rightEyeGroup = document.getElementById('eye-right');
+const pigSVG = document.getElementById('pig-svg');
 
 // Eye centers in SVG coordinates
 // MODIFY THESE VALUES to adjust the eye positions

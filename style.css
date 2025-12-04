@@ -38,3 +38,28 @@ svg {
     z-index: 1000;
     pointer-events: none;
 }
+
+#webcamButton {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    z-index: 1000;
+    padding: 10px 20px;
+    background-color: #ff4081;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-family: sans-serif;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    transition: background-color 0.3s;
+}
+
+#webcamButton:hover {
+    background-color: #f50057;
+}
+
+#webcamButton.active {
+    background-color: #4caf50;
+}

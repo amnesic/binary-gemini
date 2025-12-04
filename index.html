@@ -10,7 +10,11 @@
 
 <body>
     <div class="container">
-        <div id="version">v1.3</div>
+        <div id="version">v1.4</div>
+        <button id="webcamButton" class="mdc-button mdc-button--raised">
+            <span class="mdc-button__label">ENABLE CAMERA</span>
+        </button>
+        <video id="webcam" style="position: absolute; opacity: 0; pointer-events: none;" autoplay playsinline></video>
         <svg viewBox="0 0 590 1024" preserveAspectRatio="xMidYMid meet" id="pig-svg">
             <image href="pig_no_pupils.jpg" width="590" height="1024" />
 
@@ -29,7 +33,7 @@
         </svg>
         <audio id="pig-sound" src="pig-sound.mp3"></audio>
     </div>
-    <script src="script.js"></script>
+    <script type="module" src="script.js"></script>
 </body>
 
 </html>
